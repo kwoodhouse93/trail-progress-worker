@@ -25,6 +25,11 @@ func New(store Store, trigger chan struct{}, interval time.Duration) *Processor 
 }
 
 func (p *Processor) Serve(ctx context.Context) error {
+	err := p.process(ctx)
+	if err != nil {
+		return err
+	}
+
 	ticker := time.NewTicker(p.interval)
 	defer ticker.Stop()
 
