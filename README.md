@@ -10,7 +10,7 @@ go run ./...
 ## Build
 
 ```sh
-docker build .
+docker build . -t trail-progress-worker:latest
 ```
 
 ## Deploy
