@@ -1,0 +1,10 @@
+app = "trail-progress-worker"
+kill_signal = "SIGINT"
+kill_timeout = 10
+
+[deploy]
+strategy = "rolling"
+
+[env]
+PROCESS_INTERVAL = "1h"
+POSTGRES_LISTEN_CHANNEL = "activities"
