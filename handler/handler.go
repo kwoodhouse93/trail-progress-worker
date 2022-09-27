@@ -1,22 +1,28 @@
 package handler
 
 import (
-	"context"
 	"log"
 
 	"github.com/kwoodhouse93/trail-progress-worker/store"
 )
 
-type Store interface {
-	Process(ctx context.Context) error
+type Handler struct {
+	channel chan struct{}
 }
 
-func New(store Store) store.NotificationHandler {
+func New() *Handler {
+	return &Handler{
+		channel: make(chan struct{}),
+	}
+}
+
+func (h Handler) Func() store.NotificationHandler {
 	return func(payload string) {
 		log.Printf("notification received - payload %q\n", payload)
-		err := store.Process(context.Background())
-		if err != nil {
-			log.Fatalln("error processing store:", err)
-		}
+		h.channel <- struct{}{}
 	}
+}
+
+func (h Handler) Received() chan struct{} {
+	return h.channel
 }
