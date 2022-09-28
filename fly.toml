@@ -1,10 +1,19 @@
-app = "trail-progress-worker"
+# fly.toml file generated for trail-progress on 2022-09-28T13:17:18+01:00
+
+app = "trail-progress"
 kill_signal = "SIGINT"
-kill_timeout = 10
+kill_timeout = 5
+processes = []
 
 [deploy]
 strategy = "rolling"
 
 [env]
-PROCESS_INTERVAL = "1h"
 POSTGRES_LISTEN_CHANNEL = "activities"
+PROCESS_INTERVAL = "1h"
+
+[experimental]
+allowed_public_ports = []
+auto_rollback = true
+
+[[services]]
