@@ -57,7 +57,22 @@ func (s Store) Process(ctx context.Context) error {
 	}
 	defer conn.Release()
 
-	tx, err := conn.Begin(ctx)
+	// Setting IsoLevel to RepeatableRead ensures we only process activities
+	// that were available when we started running the process. It effectively
+	// uses a snapshot of the database for the duration of the transaction.
+	//
+	// This is important as the later queries - intersections and route_sections -
+	// do not produce 1 row per activity, but 0 to many rows per activity.
+	//
+	// The upshot of this is we cannot easily tell whether an activity has been
+	// processed. Hence, our last query sets all remaining activities to
+	// `processed = true`. If we don't use RepeatableRead, and more activities
+	// are committed to the DB before we finish processing, we will mark those
+	// activities as processed without processing them. This means they will never
+	// be processed.
+	tx, err := conn.BeginTx(ctx, pgx.TxOptions{
+		IsoLevel: pgx.RepeatableRead,
+	})
 	if err != nil {
 		return err
 	}
