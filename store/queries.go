@@ -2,9 +2,13 @@ package store
 
 const (
 	processNullMaps = `
-UPDATE activities
+UPDATE processing
 SET processed = true
-WHERE activities.processed = false AND activities.summary_track IS NULL
+FROM activities
+WHERE
+	processing.activity_id = activities.id AND
+	processing.processed = false AND
+	activities.summary_track IS NULL
 `
 
 	populateRelevantActivities = `
@@ -29,19 +33,21 @@ SELECT
 	  	false -- Use sphere for speed
 	) AS relevant
 FROM
-	activities,
-	routes
-WHERE activities.processed = false
+	activities
+CROSS JOIN routes
+JOIN processing ON processing.activity_id = activities.id AND processing.route_id = routes.id
+WHERE processing.processed = false
 ON CONFLICT DO NOTHING
 `
 
 	processIrrelevantActivities = `
-UPDATE activities
+UPDATE processing
 SET processed = true
 FROM relevant_activities
 WHERE
-	relevant_activities.activity_id = activities.id
-	AND activities.processed = false
+	relevant_activities.activity_id = processing.activity_id
+	AND relevant_activities.route_id = processing.route_id
+	AND processing.processed = false
 	AND relevant_activities.relevant = false
 `
 
@@ -55,9 +61,10 @@ WITH
 			routes.track AS route_track
 		FROM activities
 		JOIN relevant_activities ON relevant_activities.activity_id = activities.id
-		JOIN routes ON relevant_activities.route_id= routes.id
+		JOIN routes ON relevant_activities.route_id = routes.id
+		JOIN processing ON processing.activity_id = activities.id AND processing.route_id = routes.id
 		WHERE
-			activities.processed = false AND
+			processing.processed = false AND
 			relevant_activities.relevant = true
 	)
 INSERT INTO intersections (
@@ -92,7 +99,8 @@ WITH
 		FROM activities
 		JOIN intersections ON intersections.activity_id = activities.id
 		JOIN routes ON intersections.route_id = routes.id
-		WHERE activities.processed = false
+		JOIN processing ON processing.activity_id = activities.id AND processing.route_id = routes.id
+		WHERE processing.processed = false
 	),
 	start_ends AS (
 		SELECT
@@ -136,7 +144,7 @@ WHERE GeometryType(section_track) = 'LINESTRING'
 `
 
 	processRemaining = `
-UPDATE activities
+UPDATE processing
 SET processed = true
 WHERE processed = false
 `

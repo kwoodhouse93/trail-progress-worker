@@ -9,7 +9,7 @@ processes = []
 strategy = "rolling"
 
 [env]
-POSTGRES_LISTEN_CHANNEL = "activities"
+POSTGRES_LISTEN_CHANNEL = "processing"
 PROCESS_INTERVAL = "1h"
 
 [experimental]

@@ -83,13 +83,13 @@ func (s Store) Process(ctx context.Context) error {
 		}
 	}()
 
-	row := tx.QueryRow(ctx, "SELECT COUNT(id) FROM activities WHERE processed = false")
+	row := tx.QueryRow(ctx, "SELECT COUNT(id) FROM processing WHERE processed = false")
 	var count int
 	err = row.Scan(&count)
 	if err != nil {
 		return err
 	}
-	log.Printf("%d activities to process\n", count)
+	log.Printf("%d activity/route pairs to process\n", count)
 
 	totalProcessed := 0
 
@@ -98,7 +98,7 @@ func (s Store) Process(ctx context.Context) error {
 		return err
 	}
 	totalProcessed += int(n.RowsAffected())
-	log.Printf("marked as processed %d activities with null maps\n", n.RowsAffected())
+	log.Printf("marked as processed %d activity/route pairs with null maps\n", n.RowsAffected())
 
 	n, err = tx.Exec(ctx, populateRelevantActivities)
 	if err != nil {
@@ -111,7 +111,7 @@ func (s Store) Process(ctx context.Context) error {
 		return err
 	}
 	totalProcessed += int(n.RowsAffected())
-	log.Printf("marked as processed %d irrelevant activities\n", n.RowsAffected())
+	log.Printf("marked as processed %d irrelevant activity/route pairs\n", n.RowsAffected())
 
 	n, err = tx.Exec(ctx, populateIntersections)
 	if err != nil {
@@ -130,9 +130,9 @@ func (s Store) Process(ctx context.Context) error {
 		return err
 	}
 	totalProcessed += int(n.RowsAffected())
-	log.Printf("marked as processed %d activities\n", n.RowsAffected())
+	log.Printf("marked as processed %d activity/route pairs\n", n.RowsAffected())
 
-	log.Printf("total activities marked as processed: %d\n", totalProcessed)
+	log.Printf("total activity/route pairs marked as processed: %d\n", totalProcessed)
 	return tx.Commit(ctx)
 }
 
