@@ -3,6 +3,8 @@ package webhooks
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 
@@ -43,6 +45,11 @@ func (s Server) handleWebhooks() http.HandlerFunc {
 			s.handleSubscriptionValidation()(w, r)
 			return
 		}
+		if r.Method == http.MethodPost {
+			s.handleEvent()(w, r)
+			return
+		}
+		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
 }
 
@@ -81,5 +88,152 @@ func (s Server) handleSubscriptionValidation() http.HandlerFunc {
 		}
 		w.Write(respBody)
 		w.Header().Set("Content-Type", "application/json")
+	}
+}
+
+type aspectType string
+
+const (
+	AspectTypeCreate aspectType = "create"
+	AspectTypeUpdate aspectType = "update"
+	AspectTypeDelete aspectType = "delete"
+)
+
+type objectType string
+
+const (
+	ObjectTypeActivity objectType = "activity"
+	ObjectTypeAthlete  objectType = "athlete"
+)
+
+type updateField string
+
+const (
+	UpdateFieldTitle      updateField = "title"
+	UpdateFieldType       updateField = "type"
+	UpdateFieldPrivate    updateField = "private"
+	UpdateFieldAuthorized updateField = "authorized"
+)
+
+type updates map[updateField]interface{}
+
+// Returns (title, nil)  if `"title"` was present in `updates`
+// Returns (nil, nil) if `"title"` was not present in `updates`
+// Returns (nil, err) if `"title"` was present but was not a string as expected
+func (u updates) Title() (*string, error) {
+	value, ok := u[UpdateFieldTitle]
+	if !ok {
+		return nil, nil
+	}
+	title, ok := value.(string)
+	if !ok {
+		return nil, fmt.Errorf("webhooks: failed to parse title update: %v", value)
+	}
+	return &title, nil
+}
+
+// Returns (type, nil)  if `"type"` was present in `updates`
+// Returns (nil, nil) if `"type"` was not present in `updates`
+// Returns (nil, err) if `"type"` was present but was not a string as expected
+func (u updates) Type() (*string, error) {
+	value, ok := u[UpdateFieldType]
+	if !ok {
+		return nil, nil
+	}
+	typeVal, ok := value.(string)
+	if !ok {
+		return nil, fmt.Errorf("webhooks: failed to parse type update: %v", value)
+	}
+	return &typeVal, nil
+}
+
+// Returns (private, nil)  if `"private"` was present in `updates`
+// Returns (nil, nil) if `"private"` was not present in `updates`
+// Returns (nil, err) if `"private"` was present but was not "true" or "false" as expected
+func (u updates) Private() (*bool, error) {
+	value, ok := u[UpdateFieldPrivate]
+	if !ok {
+		return nil, nil
+	}
+	private, ok := value.(bool)
+	if !ok {
+		return nil, fmt.Errorf("webhooks: failed to parse private update: %v", value)
+	}
+	return &private, nil
+}
+
+// Returns (true, nil)  if `"authorized": "false"` was received
+// Returns (false, nil) if `"authorized"` was not present in `updates`
+// Returns (false, err) if `"authorized"` was present but was not `"false"` as expected
+func (u updates) Authorized() (bool, error) {
+	value, ok := u[UpdateFieldAuthorized]
+	if !ok {
+		return false, nil
+	}
+	authorized, ok := value.(string)
+	if !ok {
+		return false, fmt.Errorf("webhooks: failed to parse authorized update: %v", value)
+	}
+	if authorized != "false" {
+		return false, fmt.Errorf("webhooks: received unexpected authorized update: %v", authorized)
+	}
+	return true, nil
+}
+
+type webhookRequest struct {
+	ObjectType     objectType `json:"object_type"`
+	ObjectID       int        `json:"object_id"`
+	AspectType     aspectType `json:"aspect_type"`
+	Updates        updates    `json:"updates"`
+	OwnerID        int        `json:"owner_id,omitempty"`
+	SubscriptionID int        `json:"subscription_id"`
+	EventTime      int        `json:"event_time"`
+}
+
+func (s Server) handleEvent() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		reqBody, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			log.Printf("webhooks: failed to read request body: %v", err)
+			return
+		}
+		var req webhookRequest
+		err = json.Unmarshal(reqBody, &req)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			log.Printf("webhooks: failed to unmarshal request body: %v", err)
+			return
+		}
+		log.Printf("webhooks: received event: %+v\n", req)
+
+		switch req.ObjectType {
+		case ObjectTypeActivity:
+			switch req.AspectType {
+			case AspectTypeCreate:
+				// TODO: Handle create activity
+			case AspectTypeUpdate:
+				// TODO: Handle update activity
+			case AspectTypeDelete:
+				// TODO: Handle delete activity
+			default:
+				w.WriteHeader(http.StatusBadRequest)
+				log.Printf("webhooks: received activity event with unexpected aspect type: %v", req.AspectType)
+				return
+			}
+		case ObjectTypeAthlete:
+			switch req.AspectType {
+			case AspectTypeUpdate:
+				// TODO: Handle update athlete (deauthorization)
+			default:
+				w.WriteHeader(http.StatusBadRequest)
+				log.Printf("webhooks: received athlete event with unexpected aspect type: %v", req.AspectType)
+				return
+			}
+		default:
+			w.WriteHeader(http.StatusBadRequest)
+			log.Printf("webhooks: received event with unexpected object type: %v", req.ObjectType)
+			return
+		}
 	}
 }
