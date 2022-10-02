@@ -143,6 +143,41 @@ FROM sections
 WHERE GeometryType(section_track) = 'LINESTRING'
 `
 
+	populateRouteStats = `
+WITH rs as (
+	SELECT
+		route_sections.section_track,
+		route_sections.route_id,
+		activities.athlete_id
+	FROM route_sections
+	JOIN activities ON activities.id = route_sections.activity_id
+)
+INSERT INTO route_stats (
+	route_id,
+	athlete_id,
+	covered_length
+)
+SELECT
+	routes.id AS route_id,
+	athletes.id AS athlete_id,
+	COALESCE(
+		ST_Length(
+			ST_Union(
+				rs.section_track::geometry
+			)::geography
+		),
+		0
+	) AS covered_length
+FROM routes
+CROSS JOIN athletes
+LEFT OUTER JOIN rs
+	ON rs.route_id = routes.id
+	AND rs.athlete_id = athletes.id
+GROUP BY routes.id, athletes.id
+ON CONFLICT (athlete_id, route_id) DO UPDATE
+SET covered_length = EXCLUDED.covered_length
+`
+
 	processRemaining = `
 UPDATE processing
 SET processed = true

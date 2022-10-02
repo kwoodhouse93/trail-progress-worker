@@ -132,6 +132,12 @@ func (s Store) Process(ctx context.Context) error {
 	totalProcessed += int(n.RowsAffected())
 	log.Printf("marked as processed %d activity/route pairs\n", n.RowsAffected())
 
+	n, err = tx.Exec(ctx, populateRouteStats)
+	if err != nil {
+		return err
+	}
+	log.Printf("populated %d route stats\n", n.RowsAffected())
+
 	log.Printf("total activity/route pairs marked as processed: %d\n", totalProcessed)
 	return tx.Commit(ctx)
 }
