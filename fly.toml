@@ -11,9 +11,25 @@ strategy = "rolling"
 [env]
 POSTGRES_LISTEN_CHANNEL = "processing"
 PROCESS_INTERVAL = "1h"
+STRAVA_CLIENT_ID = "79710"
+STRAVA_CALLBACK_URL = "https://trail-progress.fly.dev"
 
 [experimental]
 allowed_public_ports = []
 auto_rollback = true
 
 [[services]]
+internal_port = 8080
+protocol = "tcp"
+[[services.ports]]
+handlers = ["http"]
+port = 80
+force_https = true
+[[services.ports]]
+handlers = ["tls", "http"]
+port = "443"
+[[services.tcp_checks]]
+grace_period = "1s"
+interval = "15s"
+restart_limit = 0
+timeout = "2s"

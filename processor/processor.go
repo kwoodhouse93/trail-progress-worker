@@ -41,7 +41,7 @@ func (p *Processor) Serve(ctx context.Context) error {
 
 		// Process activities when triggered.
 		case <-p.trigger:
-			log.Println("triggered")
+			log.Println("processor: triggered")
 			err := p.process(ctx)
 			if err != nil {
 				return err
@@ -49,7 +49,7 @@ func (p *Processor) Serve(ctx context.Context) error {
 
 		// Process activities on a regular interval.
 		case <-ticker.C:
-			log.Println("interval fired")
+			log.Println("processor: interval fired")
 			err := p.process(ctx)
 			if err != nil {
 				return err
@@ -61,7 +61,7 @@ func (p *Processor) Serve(ctx context.Context) error {
 // Check for unprocessed activities and process them.
 // Single-thread operation only!
 func (p Processor) process(ctx context.Context) error {
-	log.Println("processing")
-	defer func() { log.Println("done processing") }()
+	log.Println("processor: processing")
+	defer func() { log.Println("processor: done processing") }()
 	return p.store.Process(ctx)
 }

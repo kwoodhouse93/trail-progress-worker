@@ -10,4 +10,7 @@ RUN CGO_ENABLED=0 go build -o /process main.go
 FROM scratch
 
 COPY --from=build /process /process
+
+EXPOSE 8080
+
 ENTRYPOINT ["/process"]

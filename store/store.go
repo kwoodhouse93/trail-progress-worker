@@ -39,7 +39,7 @@ func (s Store) Listen(ctx context.Context, channel string, handler NotificationH
 	if err != nil {
 		return err
 	}
-	log.Println("registered listener for channel", channel)
+	log.Println("store: registered listener for channel", channel)
 
 	for {
 		notification, err := conn.Conn().WaitForNotification(ctx)
@@ -79,7 +79,7 @@ func (s Store) Process(ctx context.Context) error {
 	defer func() {
 		err := tx.Rollback(ctx)
 		if err != nil && err != pgx.ErrTxClosed {
-			log.Println("failed to rollback transaction", err)
+			log.Println("store: failed to rollback transaction", err)
 		}
 	}()
 
@@ -89,7 +89,7 @@ func (s Store) Process(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("%d activity/route pairs to process\n", count)
+	log.Printf("store: %d activity/route pairs to process\n", count)
 
 	totalProcessed := 0
 
@@ -98,47 +98,47 @@ func (s Store) Process(ctx context.Context) error {
 		return err
 	}
 	totalProcessed += int(n.RowsAffected())
-	log.Printf("marked as processed %d activity/route pairs with null maps\n", n.RowsAffected())
+	log.Printf("store: marked as processed %d activity/route pairs with null maps\n", n.RowsAffected())
 
 	n, err = tx.Exec(ctx, populateRelevantActivities)
 	if err != nil {
 		return err
 	}
-	log.Printf("populated %d relevant_activities\n", n.RowsAffected())
+	log.Printf("store: populated %d relevant_activities\n", n.RowsAffected())
 
 	n, err = tx.Exec(ctx, processIrrelevantActivities)
 	if err != nil {
 		return err
 	}
 	totalProcessed += int(n.RowsAffected())
-	log.Printf("marked as processed %d irrelevant activity/route pairs\n", n.RowsAffected())
+	log.Printf("store: marked as processed %d irrelevant activity/route pairs\n", n.RowsAffected())
 
 	n, err = tx.Exec(ctx, populateIntersections)
 	if err != nil {
 		return err
 	}
-	log.Printf("populated %d intersections\n", n.RowsAffected())
+	log.Printf("store: populated %d intersections\n", n.RowsAffected())
 
 	n, err = tx.Exec(ctx, populateRouteSections)
 	if err != nil {
 		return err
 	}
-	log.Printf("populated %d route sections\n", n.RowsAffected())
+	log.Printf("store: populated %d route sections\n", n.RowsAffected())
 
 	n, err = tx.Exec(ctx, processRemaining)
 	if err != nil {
 		return err
 	}
 	totalProcessed += int(n.RowsAffected())
-	log.Printf("marked as processed %d activity/route pairs\n", n.RowsAffected())
+	log.Printf("store: marked as processed %d activity/route pairs\n", n.RowsAffected())
 
 	n, err = tx.Exec(ctx, populateRouteStats)
 	if err != nil {
 		return err
 	}
-	log.Printf("populated %d route stats\n", n.RowsAffected())
+	log.Printf("store: populated %d route stats\n", n.RowsAffected())
 
-	log.Printf("total activity/route pairs marked as processed: %d\n", totalProcessed)
+	log.Printf("store: total activity/route pairs marked as processed: %d\n", totalProcessed)
 	return tx.Commit(ctx)
 }
 

@@ -18,7 +18,7 @@ func New() *Handler {
 
 func (h Handler) Func() store.NotificationHandler {
 	return func(payload string) {
-		log.Printf("notification received - payload %q\n", payload)
+		log.Printf("handler: notification received - payload %q\n", payload)
 		h.channel <- struct{}{}
 	}
 }
