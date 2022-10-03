@@ -7,17 +7,21 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"time"
 
+	"github.com/kwoodhouse93/trail-progress-worker/store"
 	"github.com/kwoodhouse93/trail-progress-worker/strava"
+	"github.com/pkg/errors"
 )
 
 type Server struct {
 	server      *http.Server
 	stravaAPI   *strava.API
+	store       *store.Store
 	verifyToken string
 }
 
-func NewServer(addr string, stravaAPI *strava.API, verifyToken string) *Server {
+func NewServer(addr string, stravaAPI *strava.API, store *store.Store, verifyToken string) *Server {
 	s := &http.Server{
 		Addr: addr,
 	}
@@ -25,6 +29,7 @@ func NewServer(addr string, stravaAPI *strava.API, verifyToken string) *Server {
 	return &Server{
 		server:      s,
 		stravaAPI:   stravaAPI,
+		store:       store,
 		verifyToken: verifyToken,
 	}
 }
@@ -211,11 +216,26 @@ func (s Server) handleEvent() http.HandlerFunc {
 		case ObjectTypeActivity:
 			switch req.AspectType {
 			case AspectTypeCreate:
-				// TODO: Handle create activity
+				err := s.handleCreateActivity(r.Context(), req)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					log.Printf("webhooks: failed to handle create activity event: %v", err)
+					return
+				}
 			case AspectTypeUpdate:
-				// TODO: Handle update activity
+				err := s.handleUpdateActivity(r.Context(), req)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					log.Printf("webhooks: failed to handle update activity event: %v", err)
+					return
+				}
 			case AspectTypeDelete:
-				// TODO: Handle delete activity
+				err := s.handleDeleteActivity(r.Context(), req)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					log.Printf("webhooks: failed to handle delete activity event: %v", err)
+					return
+				}
 			default:
 				w.WriteHeader(http.StatusBadRequest)
 				log.Printf("webhooks: received activity event with unexpected aspect type: %v", req.AspectType)
@@ -224,7 +244,12 @@ func (s Server) handleEvent() http.HandlerFunc {
 		case ObjectTypeAthlete:
 			switch req.AspectType {
 			case AspectTypeUpdate:
-				// TODO: Handle update athlete (deauthorization)
+				err := s.handleUpdateAthlete(r.Context(), req)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					log.Printf("webhooks: failed to handle update athlete event: %v", err)
+					return
+				}
 			default:
 				w.WriteHeader(http.StatusBadRequest)
 				log.Printf("webhooks: received athlete event with unexpected aspect type: %v", req.AspectType)
@@ -236,4 +261,80 @@ func (s Server) handleEvent() http.HandlerFunc {
 			return
 		}
 	}
+}
+
+func (s Server) handleCreateActivity(ctx context.Context, req webhookRequest) error {
+	token, err := s.AccessToken(ctx, req.OwnerID)
+	if err != nil {
+		return errors.Wrap(err, "webhooks: failed to get access token")
+	}
+
+	resp, err := s.stravaAPI.GetActivity(strava.GetActivityRequest{
+		AccessToken: token.Token,
+		ID:          req.ObjectID,
+	})
+	if err != nil {
+		return errors.Wrap(err, "webhooks: failed to get activity")
+	}
+	log.Println("webhooks: got new activity, ID:", resp.ID)
+
+	err = s.store.StoreActivity(ctx, req.OwnerID, resp.DetailedActivity)
+	if err != nil {
+		return errors.Wrap(err, "webhooks: failed to store activity")
+	}
+	return nil
+}
+
+func (s Server) handleUpdateActivity(ctx context.Context, req webhookRequest) error {
+	return errors.New("unimplemented")
+}
+
+func (s Server) handleDeleteActivity(ctx context.Context, req webhookRequest) error {
+	return errors.New("unimplemented")
+}
+
+func (s Server) handleUpdateAthlete(ctx context.Context, req webhookRequest) error {
+	return errors.New("unimplemented")
+}
+
+// Gets the user's access token, refreshing it if necessary.
+func (s Server) AccessToken(ctx context.Context, athleteID int) (*store.AccessToken, error) {
+	token, err := s.store.GetAccessToken(ctx, athleteID)
+	if err != nil {
+		return nil, errors.Wrap(err, "webhooks: failed to get access token")
+	}
+	log.Println("webhooks: got access token:", token)
+
+	if token.IsExpired() {
+		log.Println("webhooks: token expired, refreshing")
+		refreshToken, err := s.store.GetRefreshToken(ctx, athleteID)
+		if err != nil {
+			return nil, errors.Wrap(err, "webhooks: failed to get refresh token")
+		}
+		resp, err := s.stravaAPI.RefreshToken(strava.RefreshTokenRequest{
+			RefreshToken: refreshToken.Token,
+		})
+		if err != nil {
+			return nil, errors.Wrap(err, "webhooks: failed to refresh token")
+		}
+		log.Println("webhooks: refreshed token:", resp)
+
+		err = s.store.StoreTokens(
+			ctx,
+			athleteID,
+			resp.AccessToken,
+			resp.RefreshToken,
+			time.UnixMilli(int64(resp.ExpiresAt*1000)),
+		)
+		if err != nil {
+			return nil, errors.Wrap(err, "webhooks: failed to store tokens")
+		}
+		token = &store.AccessToken{
+			Token:     resp.AccessToken,
+			ExpiresAt: time.UnixMilli(int64(resp.ExpiresAt * 1000)),
+		}
+		log.Println("webhooks: stored refreshed token:", token.Token)
+	}
+
+	return token, nil
 }

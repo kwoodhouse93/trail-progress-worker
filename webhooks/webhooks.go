@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/google/uuid"
+	"github.com/kwoodhouse93/trail-progress-worker/store"
 	"github.com/kwoodhouse93/trail-progress-worker/strava"
 )
 
@@ -16,11 +17,11 @@ type Subscription struct {
 }
 
 // Must call Close() on the returned Subscription to remove the subscription on the Strava API.
-func NewSubscription(clientID int, clientSecret string, callbackURL string) (*Subscription, error) {
+func NewSubscription(clientID int, clientSecret string, callbackURL string, store *store.Store) (*Subscription, error) {
 	stravaAPI := strava.NewAPI(clientID, clientSecret)
 
 	verifyToken := uuid.NewString()
-	server := NewServer(":8080", stravaAPI, verifyToken)
+	server := NewServer(":8080", stravaAPI, store, verifyToken)
 	go server.Serve()
 
 	viewResp, err := stravaAPI.ViewSubscription()

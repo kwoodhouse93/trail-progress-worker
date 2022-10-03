@@ -49,7 +49,7 @@ func main() {
 	processor := processor.New(store, handler.Received(), config.ProcessInterval)
 
 	log.Println("starting webhook subscription")
-	subscription, err := webhooks.NewSubscription(config.Strava.ClientID, config.Strava.ClientSecret, config.Strava.CallbackURL)
+	subscription, err := webhooks.NewSubscription(config.Strava.ClientID, config.Strava.ClientSecret, config.Strava.CallbackURL, store)
 	if err != nil {
 		log.Fatal(err)
 	}
