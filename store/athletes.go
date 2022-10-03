@@ -12,5 +12,5 @@ func (s Store) DeleteAthlete(ctx context.Context, athleteID int) error {
 
 const deleteAthleteQuery = `
 DELETE FROM athletes
-WHERE athlete_id = $1
+WHERE id = $1
 `
