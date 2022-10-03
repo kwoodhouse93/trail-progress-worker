@@ -7,6 +7,10 @@ import (
 )
 
 func (s Store) StoreActivity(ctx context.Context, athleteID int, activity strava.DetailedActivity) error {
+	var summaryTrack *string = nil
+	if activity.Map.SummaryPolyline != "" {
+		summaryTrack = &activity.Map.SummaryPolyline
+	}
 	_, err := s.pool.Exec(
 		ctx,
 		insertActivityQuery,
@@ -20,7 +24,7 @@ func (s Store) StoreActivity(ctx context.Context, athleteID int, activity strava
 		activity.SportType,
 		activity.StartDate,
 		activity.Timezone,
-		activity.Map.SummaryPolyline,
+		summaryTrack,
 		activity.StartLatLong[1],
 		activity.StartLatLong[0],
 		activity.EndLatLong[1],
