@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"strconv"
+	"strings"
 
 	"github.com/kwoodhouse93/trail-progress-worker/strava"
 )
@@ -75,3 +77,47 @@ INSERT INTO activities (
 	$17,
 	$18
 ) ON CONFLICT DO NOTHING`
+
+func (s Store) UpdateActivity(ctx context.Context, athleteID, activityID int, title, activityType *string) error {
+	paramCount := 3
+	updates := []string{}
+	values := []interface{}{athleteID, activityID}
+	if title != nil {
+		updates = append(updates, "name = $"+strconv.Itoa(paramCount))
+		values = append(values, *title)
+		paramCount++
+	}
+	if activityType != nil {
+		updates = append(updates, "activity_type = $"+strconv.Itoa(paramCount))
+		values = append(values, *activityType)
+		paramCount++
+	}
+	if len(updates) == 0 {
+		return nil
+	}
+
+	query := "UPDATE activities SET " + strings.Join(updates, ", ") + " WHERE athlete_id = $1 AND id = $2"
+	_, err := s.pool.Exec(
+		ctx,
+		query,
+		values...,
+	)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s Store) DeleteActivity(ctx context.Context, athleteID, activityID int) error {
+	_, err := s.pool.Exec(ctx, deleteActivityQuery, athleteID, activityID)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+const deleteActivityQuery = `
+DELETE FROM activities
+WHERE athlete_id = $1
+AND id = $2
+`

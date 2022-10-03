@@ -260,6 +260,9 @@ func (s Server) handleEvent() http.HandlerFunc {
 			log.Printf("webhooks: received event with unexpected object type: %v", req.ObjectType)
 			return
 		}
+
+		// Respond with 200 OK to acknowledge the event
+		w.WriteHeader(http.StatusOK)
 	}
 }
 
@@ -286,15 +289,48 @@ func (s Server) handleCreateActivity(ctx context.Context, req webhookRequest) er
 }
 
 func (s Server) handleUpdateActivity(ctx context.Context, req webhookRequest) error {
-	return errors.New("unimplemented")
+	t, err := req.Updates.Title()
+	if err != nil {
+		return errors.Wrap(err, "webhooks: failed to get title from updates")
+	}
+	a, err := req.Updates.Type()
+	if err != nil {
+		return errors.Wrap(err, "webhooks: failed to get activity type from updates")
+	}
+	// Ignoring req.Updates.Private() because we don't do anything with it.
+	// No activities are accessible to anyone other than their owner.
+	err = s.store.UpdateActivity(ctx, req.OwnerID, req.ObjectID, t, a)
+	if err != nil {
+		return errors.Wrap(err, "webhooks: failed to update activity")
+	}
+	return nil
 }
 
 func (s Server) handleDeleteActivity(ctx context.Context, req webhookRequest) error {
-	return errors.New("unimplemented")
+	err := s.store.DeleteActivity(ctx, req.OwnerID, req.ObjectID)
+	if err != nil {
+		return errors.Wrap(err, "webhooks: failed to delete activity")
+	}
+	log.Println("webhooks: deleted activity, ID:", req.ObjectID)
+	return nil
 }
 
 func (s Server) handleUpdateAthlete(ctx context.Context, req webhookRequest) error {
-	return errors.New("unimplemented")
+	deauth, err := req.Updates.Authorized()
+	if err != nil {
+		return errors.Wrap(err, "webhooks: failed to parse authorized update")
+	}
+	if !deauth {
+		return errors.New("webhooks: expected deauth update but updates field was invalid")
+	}
+	if req.OwnerID != req.ObjectID {
+		return errors.New("webhooks: owner ID and object ID do not match")
+	}
+	err = s.store.DeleteAthlete(ctx, req.ObjectID)
+	if err != nil {
+		return errors.Wrap(err, "webhooks: failed to delete athlete")
+	}
+	return nil
 }
 
 // Gets the user's access token, refreshing it if necessary.
