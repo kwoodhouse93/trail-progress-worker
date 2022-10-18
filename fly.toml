@@ -10,7 +10,9 @@ strategy = "rolling"
 
 [env]
 POSTGRES_LISTEN_CHANNEL = "processing"
-PROCESS_INTERVAL = "1h"
+PROCESSOR_BATCH_SIZE = "20"
+PROCESSOR_CONCURRENCY = "2"
+PROCESSOR_INTERVAL = "1h"
 STRAVA_CLIENT_ID = "79710"
 STRAVA_CALLBACK_URL = "https://trail-progress.fly.dev"
 

@@ -15,6 +15,12 @@ import (
 	"github.com/kwoodhouse93/trail-progress-worker/webhooks"
 )
 
+type ProcessorConfig struct {
+	Interval    time.Duration `required:"true" envconfig:"INTERVAL"`
+	Concurrency int           `default:"1" envconfig:"CONCURRENCY"`
+	BatchSize   int           `default:"10" envconfig:"BATCH_SIZE"`
+}
+
 type PostgresConfig struct {
 	ConnectionURL string `required:"true" envconfig:"CONNECTION_URL"`
 	ListenChannel string `required:"true" envconfig:"LISTEN_CHANNEL"`
@@ -27,9 +33,9 @@ type StravaConfig struct {
 }
 
 type Config struct {
-	Postgres        PostgresConfig
-	Strava          StravaConfig
-	ProcessInterval time.Duration `required:"true" envconfig:"PROCESS_INTERVAL"`
+	Processor ProcessorConfig
+	Postgres  PostgresConfig
+	Strava    StravaConfig
 }
 
 func main() {
@@ -46,7 +52,6 @@ func main() {
 	defer store.Cleanup()
 
 	handler := handler.New()
-	processor := processor.New(store, handler.Received(), config.ProcessInterval)
 
 	log.Println("starting webhook subscription")
 	subscription, err := webhooks.NewSubscription(config.Strava.ClientID, config.Strava.ClientSecret, config.Strava.CallbackURL, store)
@@ -65,16 +70,19 @@ func main() {
 		cancel()
 	}()
 
-	log.Println("starting store listener")
-	go func() {
-		err = store.Listen(ctx, config.Postgres.ListenChannel, handler.Func())
-		if err != nil {
-			log.Fatal(err)
-		}
-	}()
+	log.Printf("starting %d processor(s)", config.Processor.Concurrency)
+	for i := 0; i < config.Processor.Concurrency; i++ {
+		processor := processor.New(store, handler.Received(), config.Processor.Interval, config.Processor.BatchSize)
+		go func() {
+			err = processor.Serve(ctx)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}()
+	}
 
-	log.Println("starting processor")
-	err = processor.Serve(ctx)
+	log.Println("starting store listener")
+	err = store.Listen(ctx, config.Postgres.ListenChannel, handler.Func())
 	if err != nil {
 		log.Fatal(err)
 	}
